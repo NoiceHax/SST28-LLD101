@@ -1,61 +1,32 @@
-Exercise A — Singleton Refactoring (Metrics Registry)
-----------------------------------------------------
-Narrative
-A CLI tool called **PulseMeter** collects runtime metrics (counters) and exposes them globally
-so any part of the app can increment counters like `REQUESTS_TOTAL`, `DB_ERRORS`, etc.
+# 🔒 SST28-LLD101: Singleton Pattern — Metrics Registry Exercise
 
-The current implementation is **not a real singleton**, **not thread-safe**, and is vulnerable to
-**reflection** and **serialization** breaking the singleton guarantee.
+Welcome to the Singleton Pattern exercise! This project demonstrates identifying and fixing a **broken Singleton** implementation in a metrics registry system, covering thread safety, serialization, reflection, and correct usage patterns.
 
-Your job is to refactor it into a **proper, thread-safe, lazy-initialized Singleton**.
+---
 
-What you have (Starter)
-- `MetricsRegistry` is *intended* to be global, but:
-  - `getInstance()` can return different objects under concurrency.
-  - The constructor is not private.
-  - Reflection can create multiple instances.
-  - Serialization/deserialization can produce a new instance.
-- `MetricsLoader` incorrectly uses `new MetricsRegistry()`.
+## 🏗️ Singleton Design Pattern
+*Ensure a class has only one instance and provide a global point of access to it.*
 
-Tasks
-1) Make `MetricsRegistry` a proper, **thread-safe singleton**
-   - **Lazy initialization**
-   - **Private constructor**
-   - Thread safety: pick one approach (recommended: static holder or double-checked locking)
+### **Exercise: MetricsRegistry Singleton**
+- **🔍 Problem Before Refactoring**: The `MetricsRegistry` class was intended to be a Singleton but had multiple critical flaws:
+  1. **Public Constructor** — Anyone could call `new MetricsRegistry()`, bypassing the singleton and creating multiple instances.
+  2. **Racy Lazy Initialization** — `getInstance()` had no synchronization; two threads calling it simultaneously could each create a separate instance.
+  3. **No Serialization Protection** — The class implemented `Serializable` but lacked a `readResolve()` method, meaning deserialization would silently create a new instance.
+  4. **No Reflection Guard** — Nothing prevented reflective access from breaking the singleton contract.
+  5. **Incorrect Usage in `MetricsLoader`** — `MetricsLoader.loadFromFile()` directly called `new MetricsRegistry()` instead of using the global singleton instance, creating a disconnected local copy.
+  6. **Incorrect Usage in `App`** — `App.main()` also called `new MetricsRegistry()` directly for `r3`, demonstrating the broken constructor visibility.
 
-2) Block reflection-based multiple construction
-   - If the constructor is called when an instance already exists, throw an exception
-   - (Hint: use a static flag/instance check inside the constructor)
+- **💡 What is done (Solution)**: The singleton was hardened with four layers of protection, the public API was completed, all consumers were fixed to use `getInstance()`, and demo/verification programs were added for each protection layer.
 
-3) Preserve singleton on serialization
-   - Implement `readResolve()` so deserialization returns the same singleton instance
+- **📝 Modified Existing Files**:
+  - `MetricsRegistry`: Constructor made **private**. Instance field marked **`volatile`**. `getInstance()` now uses **double-checked locking** with `synchronized`. A **reflection guard** throws `IllegalStateException` if the constructor is invoked when an instance already exists. A **`readResolve()`** method ensures deserialization returns the existing singleton. Added **`increment(key)`** (thread-safe atomic increment via `ConcurrentHashMap.merge`) and **`getAll()`** (returns an immutable snapshot) to complete the required public API.
+  - `MetricsLoader`: Replaced `new MetricsRegistry()` → `MetricsRegistry.getInstance()` so loaded metrics populate the global singleton instead of a throwaway local copy.
+  - `App`: Updated to demonstrate `increment(key)` and `getAll()` instead of `setCount()`, correctly showing counter accumulation across shared references.
+  - `ConcurrencyCheck`: **No changes needed** — it already used `getInstance()`. With the thread-safety fix, it now correctly reports **1 unique instance** across all 80 concurrent threads.
 
-4) Update `MetricsLoader` to use the singleton
-   - No `new MetricsRegistry()` anywhere in code
+- **✨ New Files Created & Their Purpose**:
+  - `ReflectionAttack`: Demonstrates that accessing the private constructor via `getDeclaredConstructor().setAccessible(true)` is blocked — the constructor guard throws `IllegalStateException`, preventing a second instance.
+  - `SerializationCheck`: Demonstrates that serializing and deserializing the singleton via `ObjectOutputStream` / `ObjectInputStream` returns the exact same instance (verified by `==` and `identityHashCode`), thanks to `readResolve()`.
 
-Acceptance
-- Single instance across threads within a JVM run.
-- Reflection cannot construct a second instance.
-- Deserialization returns the same instance.
-- Loading metrics from `metrics.properties` works.
-- Values are accessible via:
-  - `increment(key)`
-  - `getCount(key)`
-  - `getAll()`
-
-Build/Run (Starter)
-  cd singleton-metrics/src
-  javac com/example/metrics/*.java
-  java com.example.metrics.App
-
-Useful Demo Commands (after you fix it)
-- Concurrency check:
-  java com.example.metrics.ConcurrencyCheck
-- Reflection attack check:
-  java com.example.metrics.ReflectionAttack
-- Serialization check:
-  java com.example.metrics.SerializationCheck
-
-Note
-This starter is intentionally broken. Some of these checks will "succeed" in breaking the singleton
-until you fix the implementation.
+> 🎤 **SumUp:**
+> *"In this exercise, the `MetricsRegistry` was supposed to be a Singleton but was broken in almost every way possible. The constructor was public, so anyone could call `new MetricsRegistry()`. The lazy initialization in `getInstance()` had a classic race condition — two threads could slip through the `null` check simultaneously and create two instances. On top of that, it implemented `Serializable` without `readResolve()`, so deserializing would also create a duplicate. And the public API was incomplete — `increment(key)` and `getAll()` were missing, which are the core operations for a metrics registry. I fixed all of this: the constructor is now private with a reflection guard, `getInstance()` uses volatile + double-checked locking for thread safety, `readResolve()` ensures deserialization returns the same instance, and the API now has `increment()` (using `ConcurrentHashMap.merge` for atomicity) and `getAll()` (returning an immutable snapshot). I also added `ReflectionAttack.java` and `SerializationCheck.java` to verify each protection layer in isolation."*

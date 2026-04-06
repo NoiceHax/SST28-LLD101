@@ -4,8 +4,6 @@ import java.util.regex.Pattern;
 
 /**
  * Central place for validation helpers.
- *
- * Students can extend this as needed.
  */
 public final class Validation {
 

@@ -2,22 +2,20 @@ package com.example.metrics;
 
 import java.lang.reflect.Constructor;
 
-/**
- * Attempts to create multiple instances via reflection.
- * Starter allows this. After fix, it must fail.
- */
 public class ReflectionAttack {
 
     public static void main(String[] args) throws Exception {
-        MetricsRegistry singleton = MetricsRegistry.getInstance();
+        MetricsRegistry first = MetricsRegistry.getInstance();
+        System.out.println("First instance: " + System.identityHashCode(first));
 
         Constructor<MetricsRegistry> ctor = MetricsRegistry.class.getDeclaredConstructor();
         ctor.setAccessible(true);
 
-        MetricsRegistry evil = ctor.newInstance();
-
-        System.out.println("Singleton identity: " + System.identityHashCode(singleton));
-        System.out.println("Evil identity     : " + System.identityHashCode(evil));
-        System.out.println("Same object?      : " + (singleton == evil));
+        try {
+            MetricsRegistry second = ctor.newInstance();
+            System.out.println("FAIL: A second instance was created: " + System.identityHashCode(second));
+        } catch (Exception e) {
+            System.out.println("PASS: Reflection attack blocked — " + e.getCause().getMessage());
+        }
     }
 }

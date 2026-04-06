@@ -1,16 +1,7 @@
 package com.example.tickets;
 
 /**
- * Service layer that creates tickets.
- *
- * CURRENT STATE (BROKEN ON PURPOSE):
- * - creates partially valid objects
- * - mutates after creation (bad for auditability)
- * - validation is scattered & incomplete
- *
- * TODO (student):
- * - After introducing immutable IncidentTicket + Builder, refactor this to stop
- * mutating.
+ * Service layer that creates and "updates" tickets by creating new instances.
  */
 public class TicketService {
 
@@ -27,14 +18,16 @@ public class TicketService {
     }
 
     public IncidentTicket escalateToCritical(IncidentTicket t) {
-        return t.toBuilder()
+        // Return a NEW instance with updated fields
+        return IncidentTicket.from(t)
                 .priority("CRITICAL")
                 .addTag("ESCALATED")
                 .build();
     }
 
     public IncidentTicket assign(IncidentTicket t, String assigneeEmail) {
-        return t.toBuilder()
+        // Return a NEW instance with updated fields
+        return IncidentTicket.from(t)
                 .assigneeEmail(assigneeEmail)
                 .build();
     }

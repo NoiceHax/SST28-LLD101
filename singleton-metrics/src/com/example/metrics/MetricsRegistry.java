@@ -1,69 +1,62 @@
 package com.example.metrics;
 
-import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * INTENTION: Global metrics registry (should be a Singleton).
- *
- * CURRENT STATE (BROKEN ON PURPOSE):
- * - Constructor is public -> anyone can create instances.
- * - getInstance() is lazy but NOT thread-safe -> can create multiple instances.
- * - Reflection can call the constructor to create more instances.
- * - Serialization can create a new instance when deserialized.
- *
- * TODO (student):
- * 1) Make it a proper lazy, thread-safe singleton (private ctor)
- * 2) Block reflection-based multiple construction
- * 3) Preserve singleton on serialization (readResolve)
- */
-public final class MetricsRegistry implements Serializable {
-
-    @Serial
+public class MetricsRegistry implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private static volatile boolean instanceCreated = false;
+    // Use volatile to ensure visibility across threads
+    private static volatile MetricsRegistry instance;
 
-    private final Map<String, Long> counters = new HashMap<>();
+    private final Map<String, Long> counters = new ConcurrentHashMap<>();
 
+    // FIX 1: Private constructor prevents external instantiation
     private MetricsRegistry() {
-        synchronized (MetricsRegistry.class) {
-            if (instanceCreated) {
-                throw new IllegalStateException("Singleton already instantiated – reflection attack blocked");
-            }
-            instanceCreated = true;
+        // FIX 2: Guard against reflection-based attacks
+        if (instance != null) {
+            throw new IllegalStateException(
+                    "Singleton instance already exists! Use getInstance() instead.");
         }
+        System.out.println("Creating new MetricsRegistry...");
     }
 
-    private static final class Holder {
-        static final MetricsRegistry INSTANCE = new MetricsRegistry();
-    }
-
+    // FIX 3: Thread-safe double-checked locking with volatile
     public static MetricsRegistry getInstance() {
-        return Holder.INSTANCE;
+        if (instance == null) {
+            synchronized (MetricsRegistry.class) {
+                if (instance == null) {
+                    instance = new MetricsRegistry();
+                }
+            }
+        }
+        return instance;
     }
 
-    public synchronized void setCount(String key, long value) {
+    public void increment(String key) {
+        counters.merge(key, 1L, Long::sum);
+    }
+
+    public void setCount(String key, long value) {
         counters.put(key, value);
     }
 
-    public synchronized void increment(String key) {
-        counters.put(key, getCount(key) + 1);
-    }
-
-    public synchronized long getCount(String key) {
+    public long getCount(String key) {
         return counters.getOrDefault(key, 0L);
     }
 
-    public synchronized Map<String, Long> getAll() {
-        return Collections.unmodifiableMap(new HashMap<>(counters));
+    public Map<String, Long> getAll() {
+        return Map.copyOf(counters);
     }
 
-    @Serial
-    private Object readResolve() {
+    // FIX 4: Protect against deserialization creating a new instance
+    protected Object readResolve() {
         return getInstance();
+    }
+
+    @Override
+    public String toString() {
+        return "MetricsRegistry" + counters;
     }
 }

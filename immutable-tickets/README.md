@@ -1,62 +1,26 @@
-Exercise B — Immutable Classes (Incident Tickets)
-------------------------------------------------
-Narrative
-A small CLI tool called **HelpLite** creates and manages support/incident tickets.
-Today, `IncidentTicket` is **mutable**:
-- multiple constructors
-- public setters
-- validation scattered across the codebase
-- objects can be modified after being "created", causing audit/log inconsistencies
+# 🛡️ SST28-LLD101: Immutable Objects & Builder Pattern — Incident Ticket Exercise
 
-Refactor the design so `IncidentTicket` becomes **immutable** and is created using a **Builder**.
+Welcome to the Immutability and Builder Pattern exercise! This project demonstrates refactoring a leaky, mutable data model into a robust, thread-safe, and validated **Immutable** structure.
 
-What you have (Starter)
-- `IncidentTicket` has public setters + several constructors.
-- `TicketService` creates a ticket, then mutates it later (bad).
-- Validation is duplicated and scattered, making it easy to miss checks.
-- `TryIt` demonstrates how the same object can change unexpectedly.
+---
 
-Tasks
-1) Refactor `IncidentTicket` to an **immutable class**
-   - private final fields
-   - no setters
-   - defensive copying for collections
-   - safe getters (no internal state leakage)
+## 🏗️ Immutable Design Pattern
+*An object whose state cannot be modified after it is created. Often paired with the **Builder** pattern for flexible construction.*
 
-2) Introduce `IncidentTicket.Builder`
-   - Required: `id`, `reporterEmail`, `title`
-   - Optional: `description`, `priority`, `tags`, `assigneeEmail`, `customerVisible`, `slaMinutes`, `source`
-   - Builder should be fluent (`builder().id(...).title(...).build()`)
+### **Exercise: Incident Ticket Refactoring**
+- **🔍 Problem Before Refactoring**: The `IncidentTicket` class was highly unstable:
+  1. **Public Setters** — Any part of the code could change a ticket's ID, priority, or reporter at any time, breaking audit trails.
+  2. **List Leakage** — `getTags()` returned the internal `List` reference, allowing callers to bypass the class and modify tags directly.
+  3. **Scattered Validation** — Validation was partially in `TicketService` and partially missing, allowing the creation of "half-valid" tickets (e.g., missing IDs or invalid emails).
+  4. **Post-Creation Mutation** — `TicketService` would create a ticket and then call multiple setters to "configure" it, leading to inconsistent intermediate states.
 
-3) Centralize validation
-   - Move ALL validation to `Builder.build()`
-   - Use helpers in `Validation.java` (add more if needed)
-   - Examples:
-     - id: non-empty, length <= 20, only [A-Z0-9-] (you can reuse helper)
-     - reporterEmail/assigneeEmail: must look like an email
-     - title: non-empty, length <= 80
-     - priority: one of LOW/MEDIUM/HIGH/CRITICAL
-     - slaMinutes: if provided, must be between 5 and 7,200
+- **💡 What is done (Solution)**: The ticket was converted to a strictly immutable class with a nested Builder that enforces all validation rules before the object is even born.
+- **📝 Modified Existing Files**:
+  - `IncidentTicket`: All fields marked **`final`**. All setters **removed**. Added a static inner **`Builder`** class. The `tags` list is now protected via `Collections.unmodifiableList()`. Added a `from(IncidentTicket)` static method to allow "updating" a ticket by creating a new one based on the old one.
+  - `TicketService`: Refactored to use the Builder. Methods like `escalateToCritical()` and `assign()` no longer mutate the input ticket; instead, they return a **NEW** immutable instance with the updated fields.
+  - `TryIt`: Updated to demonstrate that the original ticket remains unchanged after "updates" and that direct list modification now throws an exception.
+- **✨ New Files Created & Their Purpose**:
+  - `Validation`: A utility class created to centralize all business rules (email regex, ID format, non-blank checks), ensuring consistent validation across the entire app.
 
-4) Update `TicketService`
-   - Stop mutating a ticket after creation
-   - Any “updates” should create a **new** ticket instance (e.g., by Builder copy/from method)
-   - Keep the API simple; you can add `toBuilder()` or `Builder.from(existing)`
-
-Acceptance
-- `IncidentTicket` has no public setters and fields are final.
-- Tickets cannot be modified after creation (including tags list).
-- Validation happens only in one place (`build()`).
-- `TryIt` still works, but now demonstrates immutability (attempted mutations should not compile or have no effect).
-- Code compiles and runs with the starter commands below.
-
-Build/Run (Starter demo)
-  cd immutable-tickets/src
-  javac com/example/tickets/*.java TryIt.java
-  java TryIt
-
-Tip
-After refactor, you can update `TryIt` to show:
-- building a ticket
-- “updating” by creating a new instance
-- tags list is not mutable from outside
+> 🎤 **SumUp:**
+> *"In this exercise, `IncidentTicket` was a mess of mutability. You could change its ID after it was created, and anyone calling `getTags()` could sneakily add or remove tags because of a list leak. This makes the system impossible to debug or audit. I refactored it into a strictly Immutable class. I removed all setters and added a `Builder` that enforces strict validation — like checking email formats and ID lengths — before the ticket is created. I also protected the tags list using `unmodifiableList`. Now, if `TicketService` wants to 'assign' a ticket, it doesn't change the old one; it returns a brand new one. This makes the code thread-safe and ensures that once a ticket is created, its state is guaranteed to be valid and permanent."*
